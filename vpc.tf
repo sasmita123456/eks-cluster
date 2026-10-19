@@ -1,8 +1,15 @@
-# ───────────────────────────────────────────────
-# VPC + Subnets for EKS
-# Public subnets  → bastion host, NAT gateway, load balancers
-# Private subnets → EKS worker nodes (best practice: nodes never get public IPs)
-# ───────────────────────────────────────────────
+
+# --------------------------------------------------
+# VPC and Subnets for EKS
+# Public subnets:
+#   - Bastion host
+#   - NAT Gateway
+#   - Internet-facing load balancers
+#
+# Private subnets:
+#   - EKS worker nodes
+#   - Internal load balancers
+# --------------------------------------------------
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
@@ -15,23 +22,28 @@ module "vpc" {
   public_subnets  = var.public_subnet_cidrs
   private_subnets = var.private_subnet_cidrs
 
-  enable_nat_gateway   = true
-  single_nat_gateway   = true # cost-optimised: one NAT gateway shared across all AZs
-  enable_dns_hostnames = true
+  # DNS
   enable_dns_support   = true
+  enable_dns_hostnames = true
 
-  # Required tags for EKS to auto-discover subnets for load balancers
+  # Outbound internet access for private subnets.
+  # A NAT Gateway incurs hourly and data-processing charges.
+  enable_nat_gateway = true
+  single_nat_gateway = true
+
+  # Public subnet tags for internet-facing load balancers.
   public_subnet_tags = {
     "kubernetes.io/role/elb"                    = "1"
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
   }
 
+  # Private subnet tags for internal load balancers.
   private_subnet_tags = {
     "kubernetes.io/role/internal-elb"           = "1"
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
   }
 
   tags = {
-    Name = "${var.project_name}-vpc"
+    Project = var.project_name
   }
 }
